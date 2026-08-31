@@ -202,6 +202,8 @@ export const apoios = sqliteTable("apoios", {
   equipes: text("equipes"),
   viaturas: text("viaturas"),
   status: text("status").notNull().default("Solicitado"), // Solicitado | Aprovado | Em execução | Concluído | Negado
+  latitude: real("latitude"),
+  longitude: real("longitude"),
   briefing: text("briefing"),
   relatorioPos: text("relatorio_pos"),
   observacoes: text("observacoes"),
@@ -219,6 +221,8 @@ export const eventos = sqliteTable("eventos", {
   publicoAlvo: text("publico_alvo"),
   descricao: text("descricao"),
   status: text("status").notNull().default("Confirmado"), // Confirmado | Previsto | Cancelado | Realizado
+  latitude: real("latitude"),
+  longitude: real("longitude"),
   ...timestamps,
 });
 
@@ -234,6 +238,8 @@ export const operacoes = sqliteTable("operacoes", {
   viaturasEmpregadas: integer("viaturas_empregadas"),
   orgaosApoio: text("orgaos_apoio"),
   areaAtuacao: text("area_atuacao"),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
   objetivo: text("objetivo"),
   resultado: text("resultado"),
   ...timestamps,

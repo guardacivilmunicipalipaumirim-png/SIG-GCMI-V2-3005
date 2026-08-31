@@ -21,7 +21,12 @@ const CONFIG_PADRAO: { chave: string; valor: string; grupo: string; descricao: s
   { chave: "seguranca.tentativas_maximas", valor: "5", grupo: "seguranca", descricao: "Tentativas de login antes do bloqueio" },
   { chave: "notificacoes.email", valor: "", grupo: "notificacoes", descricao: "E-mail para notificações" },
   { chave: "notificacoes.sms", valor: "", grupo: "notificacoes", descricao: "Número para SMS" },
-  { chave: "integracoes.maps_ativo", valor: "sim", grupo: "integracoes", descricao: "Google Maps no mapa operacional" },
+  {
+    chave: "integracoes.mapa_provedor",
+    valor: "escuro",
+    grupo: "integracoes",
+    descricao: "Provedor de tiles do mapa operacional (MapLibre + OpenStreetMap, sem chave de API)",
+  },
   { chave: "backup.frequencia", valor: "Diária", grupo: "backup", descricao: "Frequência do backup automático" },
   { chave: "backup.retencao_dias", valor: "30", grupo: "backup", descricao: "Retenção dos backups (dias)" },
   { chave: "personalizacao.tema", valor: "institucional-escuro", grupo: "personalizacao", descricao: "Tema da interface" },

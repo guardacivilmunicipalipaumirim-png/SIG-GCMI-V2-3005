@@ -308,9 +308,58 @@ export const mapa = {
 
       const zonas = await db.select().from(schema.zonas);
 
+      const eventos = await db
+        .select({
+          id: schema.eventos.id,
+          titulo: schema.eventos.titulo,
+          categoria: schema.eventos.categoria,
+          status: schema.eventos.status,
+          local: schema.eventos.local,
+          inicio: schema.eventos.inicio,
+          latitude: schema.eventos.latitude,
+          longitude: schema.eventos.longitude,
+        })
+        .from(schema.eventos)
+        .where(gte(schema.eventos.inicio, desde))
+        .limit(300);
+
+      const operacoes = await db
+        .select({
+          id: schema.operacoes.id,
+          nome: schema.operacoes.nome,
+          tipo: schema.operacoes.tipo,
+          status: schema.operacoes.status,
+          areaAtuacao: schema.operacoes.areaAtuacao,
+          inicio: schema.operacoes.inicio,
+          latitude: schema.operacoes.latitude,
+          longitude: schema.operacoes.longitude,
+        })
+        .from(schema.operacoes)
+        .limit(300);
+
+      const apoios = await db
+        .select({
+          id: schema.apoios.id,
+          nomeEvento: schema.apoios.nomeEvento,
+          tipo: schema.apoios.tipo,
+          status: schema.apoios.status,
+          local: schema.apoios.local,
+          dataHora: schema.apoios.dataHora,
+          latitude: schema.apoios.latitude,
+          longitude: schema.apoios.longitude,
+        })
+        .from(schema.apoios)
+        .limit(300);
+
+      const comCoordenada = <T extends { latitude: number | null; longitude: number | null }>(lista: T[]) =>
+        lista.filter((item) => item.latitude != null && item.longitude != null);
+
       return {
-        ocorrencias: ocorrencias.filter((o) => o.latitude != null && o.longitude != null),
-        viaturas: viaturas.filter((v) => v.latitude != null && v.longitude != null),
+        ocorrencias: comCoordenada(ocorrencias),
+        viaturas: comCoordenada(viaturas),
+        eventos: comCoordenada(eventos),
+        operacoes: comCoordenada(operacoes),
+        apoios: comCoordenada(apoios),
         zonas,
         semCoordenada: ocorrencias.filter((o) => o.latitude == null || o.longitude == null).length,
       };

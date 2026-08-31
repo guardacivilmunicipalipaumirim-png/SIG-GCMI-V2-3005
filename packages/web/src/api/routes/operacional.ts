@@ -128,6 +128,8 @@ export const apoios = criarCrud({
     briefing: txt,
     relatorioPos: txt,
     observacoes: txt,
+    latitude: num,
+    longitude: num,
   }),
 });
 
@@ -149,6 +151,8 @@ export const eventos = criarCrud({
     publicoAlvo: txt,
     descricao: txt,
     status: z.string(),
+    latitude: num,
+    longitude: num,
   }),
 });
 
@@ -173,6 +177,8 @@ export const operacoes = criarCrud({
     areaAtuacao: txt,
     objetivo: txt,
     resultado: txt,
+    latitude: num,
+    longitude: num,
   }),
 });
 

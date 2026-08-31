@@ -29,6 +29,14 @@ export default defineConfig(({ mode }) => {
         "@": path.resolve(__dirname, "./src/web"),
       },
     },
+    // MapLibre GL cria seu web worker via `new Worker(new URL(...))`; o
+    // pré-bundle do Vite quebra esse caminho (maplibre-gl-worker.mjs 404).
+    optimizeDeps: {
+      exclude: ["maplibre-gl"],
+    },
+    worker: {
+      format: "es" as const,
+    },
     server: {
       port: ports.website,
       strictPort: true,

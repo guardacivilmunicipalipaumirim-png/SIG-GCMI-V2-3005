@@ -29,5 +29,22 @@
 - [x] corrigido `podeGerar is not defined` em pages/relatorios.tsx
 - [x] deliver (type website, port 4200)
 
-## Pendente
-- [ ] VITE_GOOGLE_MAPS_API_KEY — mapa funciona com fallback em lista até a chave chegar
+## Mapa operacional — MapLibre + OpenStreetMap (sem Google)
+- [x] Google Maps removido por completo — nenhuma chave de API é exigida
+- [x] `maplibre-gl` instalado em packages/web
+- [x] `src/web/lib/mapa-provedor.ts` — camada de abstração de provedor de tiles
+      (escuro/claro/detalhado do OpenFreeMap + osm-raster de contingência;
+       trocável por .env: VITE_MAPA_PROVEDOR / VITE_MAPA_ESTILO_URL / VITE_MAPA_TILES_URL / VITE_MAPA_ATRIBUICAO)
+- [x] `src/web/components/mapa-operacional.tsx` — 5 categorias de marcador
+      (viaturas, ocorrências, eventos, operações, apoios) com ícone e cor próprios,
+      reposicionamento dinâmico via setLngLat, popups, zonas em GeoJSON,
+      controles de zoom/bússola/tela cheia/escala/geolocalização e troca automática
+      para o provedor de contingência em caso de falha de estilo/tiles
+- [x] colunas latitude/longitude adicionadas a apoios, eventos e operacoes (db:push aplicado)
+      + campos nos formulários (modules.ts) e no schema de entrada da API (operacional.ts)
+- [x] `mapa.dados` devolve ocorrências, viaturas, eventos, operações, apoios e zonas
+- [x] correção: `optimizeDeps.exclude: ["maplibre-gl"]` no vite.config — o pré-bundle do Vite
+      quebrava o web worker do MapLibre (maplibre-gl-worker.mjs) e o mapa nunca terminava de carregar
+- [x] validado em navegador headless: 6 marcadores das 5 categorias, popup, toggle de camadas,
+      atribuição OpenStreetMap, 0 erros de console, 0 requisições ao Google
+- [x] lint 0 erros · typecheck 3/3 · build ok

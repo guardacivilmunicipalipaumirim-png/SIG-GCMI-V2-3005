@@ -1,8 +1,16 @@
 import * as React from "react";
-import { MapPin, RefreshCw, ShieldAlert } from "lucide-react";
+import { Layers, MapPin, RefreshCw, ShieldAlert } from "lucide-react";
 import { DataModule } from "@/components/data-module";
-import { Aviso, Carregando, Selecao } from "@/components/ui/campos";
+import { Carregando, Selecao } from "@/components/ui/campos";
 import { BadgeStatus } from "@/components/ui/badge-status";
+import {
+  CATEGORIAS,
+  MapaOperacional,
+  type CategoriaMapa,
+  type PontoMapa,
+  type ZonaMapa,
+} from "@/components/mapa-operacional";
+import { provedorAtual } from "@/lib/mapa-provedor";
 import { dataHora, numero } from "@/lib/formatos";
 import { moduloPorChave } from "@/lib/modules";
 import type { UsuarioSessao } from "@/lib/session";
@@ -10,185 +18,156 @@ import { useDadosMapa } from "@/queries/painel";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-/** Centro padrão: sede da Prefeitura de Ipaumirim (CE). */
-const CENTRO = { lat: -6.7896, lng: -38.7161 };
-const CHAVE_MAPS = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
-
-const ESTILO_ESCURO = [
-  { elementType: "geometry", stylers: [{ color: "#0b1020" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#05070f" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#8a97bf" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#16204a" }] },
-  { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#a8b3d6" }] },
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#071026" }] },
-  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#1c2647" }] },
-];
-
-let promessaMaps: Promise<void> | null = null;
-
-function carregarMaps(): Promise<void> {
-  if (!CHAVE_MAPS) return Promise.reject(new Error("sem-chave"));
-  if ((window as any).google?.maps) return Promise.resolve();
-  if (promessaMaps) return promessaMaps;
-  promessaMaps = new Promise<void>((resolver, rejeitar) => {
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${CHAVE_MAPS}&language=pt-BR&region=BR`;
-    script.async = true;
-    script.onload = () => resolver();
-    script.onerror = () => rejeitar(new Error("falha-carregar"));
-    document.head.appendChild(script);
-  });
-  return promessaMaps;
-}
-
+/** Cor do marcador da ocorrência conforme a prioridade. */
 function corPrioridade(prioridade: unknown) {
   const valor = String(prioridade ?? "");
   if (valor === "Crítica") return "#d8443c";
-  if (valor === "Alta") return "#e8b430";
-  if (valor === "Média") return "#2e56c8";
+  if (valor === "Alta") return "#e8843c";
+  if (valor === "Média") return "#e8b430";
   return "#8a97bf";
 }
 
-function MapaGoogle({ dados }: { dados: any }) {
-  const alvo = React.useRef<HTMLDivElement | null>(null);
-  const mapa = React.useRef<any>(null);
-  const marcadores = React.useRef<any[]>([]);
-  const [estado, setEstado] = React.useState<"carregando" | "pronto" | "erro">("carregando");
-
-  React.useEffect(() => {
-    let ativo = true;
-    carregarMaps()
-      .then(() => {
-        if (!ativo || !alvo.current) return;
-        const g = (window as any).google;
-        mapa.current = new g.maps.Map(alvo.current, {
-          center: CENTRO,
-          zoom: 14,
-          styles: ESTILO_ESCURO,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-        });
-        setEstado("pronto");
-      })
-      .catch(() => ativo && setEstado("erro"));
-    return () => {
-      ativo = false;
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (estado !== "pronto" || !mapa.current) return;
-    const g = (window as any).google;
-    for (const item of marcadores.current) item.setMap(null);
-    marcadores.current = [];
-
-    for (const zona of dados?.zonas ?? []) {
-      if (zona.latitude == null || zona.longitude == null) continue;
-      marcadores.current.push(
-        new g.maps.Circle({
-          map: mapa.current,
-          center: { lat: Number(zona.latitude), lng: Number(zona.longitude) },
-          radius: Number(zona.raioMetros ?? 500),
-          strokeColor: zona.cor || "#2e56c8",
-          strokeOpacity: 0.8,
-          strokeWeight: 1.5,
-          fillColor: zona.cor || "#2e56c8",
-          fillOpacity: 0.12,
-        }),
-      );
-    }
-
-    for (const oco of dados?.ocorrencias ?? []) {
-      const marcador = new g.maps.Marker({
-        map: mapa.current,
-        position: { lat: Number(oco.latitude), lng: Number(oco.longitude) },
-        title: `${oco.numero} · ${oco.tipo}`,
-        icon: {
-          path: g.maps.SymbolPath.CIRCLE,
-          scale: 7,
-          fillColor: corPrioridade(oco.prioridade),
-          fillOpacity: 0.95,
-          strokeColor: "#05070f",
-          strokeWeight: 1.5,
-        },
-      });
-      const janela = new g.maps.InfoWindow({
-        content: `<div style="color:#0b1020;font-size:12px"><strong>${oco.numero ?? ""}</strong><br/>${oco.tipo ?? ""}<br/>${oco.bairro ?? ""}<br/>${dataHora(oco.dataHora)}</div>`,
-      });
-      marcador.addListener("click", () => janela.open({ map: mapa.current, anchor: marcador }));
-      marcadores.current.push(marcador);
-    }
-
-    for (const viatura of dados?.viaturas ?? []) {
-      marcadores.current.push(
-        new g.maps.Marker({
-          map: mapa.current,
-          position: { lat: Number(viatura.latitude), lng: Number(viatura.longitude) },
-          title: `Viatura ${viatura.prefixo ?? viatura.placa}`,
-          icon: {
-            path: "M -8 -4 L 8 -4 L 8 4 L -8 4 z",
-            scale: 1.4,
-            fillColor: "#28a46a",
-            fillOpacity: 0.95,
-            strokeColor: "#05070f",
-            strokeWeight: 1.5,
-          },
-        }),
-      );
-    }
-  }, [estado, dados]);
-
-  if (estado === "erro") {
-    return (
-      <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-5">
-        <Aviso
-          texto={
-            CHAVE_MAPS
-              ? "Não foi possível carregar o Google Maps. Verifique a chave da API e a habilitação do serviço Maps JavaScript."
-              : "Chave do Google Maps não configurada (VITE_GOOGLE_MAPS_API_KEY). A lista georreferenciada abaixo continua funcionando."
-          }
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative overflow-hidden rounded-lg border border-border bg-card">
-      {estado === "carregando" && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-card">
-          <Carregando texto="Carregando mapa…" />
-        </div>
-      )}
-      <div ref={alvo} className="h-[460px] w-full" />
-    </div>
-  );
-}
+const TODAS: CategoriaMapa[] = ["viaturas", "ocorrencias", "eventos", "operacoes", "apoios"];
 
 export default function MapaPage({ usuario }: { usuario: UsuarioSessao }) {
   const [dias, setDias] = React.useState(30);
-  const dados = useDadosMapa(dias);
+  const [autoAtualizar, setAutoAtualizar] = React.useState(false);
+  const dados = useDadosMapa(dias, autoAtualizar ? 15000 : undefined);
   const modulo = moduloPorChave("mapa");
+  const provedor = provedorAtual();
 
-  const ocorrencias = dados.data?.ocorrencias ?? [];
-  const viaturas = dados.data?.viaturas ?? [];
-  const zonas = dados.data?.zonas ?? [];
+  const [visiveis, setVisiveis] = React.useState<Record<CategoriaMapa, boolean>>({
+    viaturas: true,
+    ocorrencias: true,
+    eventos: true,
+    operacoes: true,
+    apoios: true,
+  });
+
+  const ocorrencias = React.useMemo(() => dados.data?.ocorrencias ?? [], [dados.data]);
+  const viaturas = React.useMemo(() => dados.data?.viaturas ?? [], [dados.data]);
+  const eventos = React.useMemo(() => dados.data?.eventos ?? [], [dados.data]);
+  const operacoes = React.useMemo(() => dados.data?.operacoes ?? [], [dados.data]);
+  const apoios = React.useMemo(() => dados.data?.apoios ?? [], [dados.data]);
+
+  const zonas = React.useMemo<ZonaMapa[]>(
+    () =>
+      (dados.data?.zonas ?? [])
+        .filter((z: any) => z.latitude != null && z.longitude != null)
+        .map((z: any) => ({
+          id: z.id,
+          nome: z.nome,
+          cor: z.cor,
+          tipo: z.tipo,
+          latitude: Number(z.latitude),
+          longitude: Number(z.longitude),
+          raioMetros: z.raioMetros,
+        })),
+    [dados.data],
+  );
+
+  /** Todos os registros georreferenciados normalizados para o mapa. */
+  const pontos = React.useMemo<PontoMapa[]>(() => {
+    const lista: PontoMapa[] = [];
+
+    for (const v of viaturas as any[]) {
+      lista.push({
+        id: v.id,
+        categoria: "viaturas",
+        latitude: Number(v.latitude),
+        longitude: Number(v.longitude),
+        titulo: `Viatura ${v.prefixo ?? v.placa ?? v.id}`,
+        linhas: [v.status ? `Status: ${v.status}` : "", `Posição de ${dataHora(v.atualizadoEm)}`],
+      });
+    }
+
+    for (const o of ocorrencias as any[]) {
+      lista.push({
+        id: o.id,
+        categoria: "ocorrencias",
+        latitude: Number(o.latitude),
+        longitude: Number(o.longitude),
+        titulo: `${o.numero ?? "Ocorrência"} · ${o.tipo ?? ""}`.trim(),
+        cor: corPrioridade(o.prioridade),
+        linhas: [
+          o.prioridade ? `Prioridade: ${o.prioridade}` : "",
+          o.status ? `Status: ${o.status}` : "",
+          [o.endereco, o.bairro].filter(Boolean).join(" — "),
+          dataHora(o.dataHora),
+        ],
+      });
+    }
+
+    for (const e of eventos as any[]) {
+      lista.push({
+        id: e.id,
+        categoria: "eventos",
+        latitude: Number(e.latitude),
+        longitude: Number(e.longitude),
+        titulo: e.titulo ?? "Evento",
+        linhas: [e.categoria ?? "", e.status ? `Status: ${e.status}` : "", e.local ?? "", dataHora(e.inicio)],
+      });
+    }
+
+    for (const op of operacoes as any[]) {
+      lista.push({
+        id: op.id,
+        categoria: "operacoes",
+        latitude: Number(op.latitude),
+        longitude: Number(op.longitude),
+        titulo: op.nome ?? "Operação",
+        linhas: [op.tipo ?? "", op.status ? `Status: ${op.status}` : "", op.areaAtuacao ?? "", dataHora(op.inicio)],
+      });
+    }
+
+    for (const a of apoios as any[]) {
+      lista.push({
+        id: a.id,
+        categoria: "apoios",
+        latitude: Number(a.latitude),
+        longitude: Number(a.longitude),
+        titulo: a.nomeEvento ?? "Apoio",
+        linhas: [a.tipo ?? "", a.status ? `Status: ${a.status}` : "", a.local ?? "", dataHora(a.dataHora)],
+      });
+    }
+
+    return lista;
+  }, [viaturas, ocorrencias, eventos, operacoes, apoios]);
+
+  const contagem: Record<CategoriaMapa, number> = {
+    viaturas: viaturas.length,
+    ocorrencias: ocorrencias.length,
+    eventos: eventos.length,
+    operacoes: operacoes.length,
+    apoios: apoios.length,
+  };
 
   return (
     <div className="entrada flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Ocorrências e viaturas com coordenadas cadastradas. Informe latitude e longitude nos registros para que
-          apareçam no mapa.
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Mapa em MapLibre GL com dados do OpenStreetMap — sem chave de API. Informe latitude e longitude nos
+          registros para que apareçam aqui. As posições das viaturas podem ser enviadas pelo aplicativo do tablet.
         </p>
         <div className="flex items-center gap-2">
           <Selecao value={String(dias)} onChange={(e) => setDias(Number(e.target.value))} className="w-auto">
+            <option value="1">Últimas 24 horas</option>
             <option value="7">Últimos 7 dias</option>
             <option value="30">Últimos 30 dias</option>
             <option value="90">Últimos 90 dias</option>
             <option value="365">Últimos 12 meses</option>
           </Selecao>
+          <button
+            type="button"
+            onClick={() => setAutoAtualizar((v) => !v)}
+            className={`rounded-md border px-3 py-2 text-xs font-semibold transition-colors ${
+              autoAtualizar
+                ? "border-success/50 bg-success/10 text-success"
+                : "border-border text-muted-foreground hover:bg-surface-2 hover:text-foreground"
+            }`}
+          >
+            {autoAtualizar ? "Tempo real: ligado" : "Tempo real: desligado"}
+          </button>
           <button
             type="button"
             onClick={() => dados.refetch()}
@@ -201,21 +180,55 @@ export default function MapaPage({ usuario }: { usuario: UsuarioSessao }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { rotulo: "Ocorrências no mapa", valor: ocorrencias.length },
-          { rotulo: "Viaturas localizadas", valor: viaturas.length },
-          { rotulo: "Zonas cadastradas", valor: zonas.length },
-          { rotulo: "Sem coordenada", valor: dados.data?.semCoordenada ?? 0 },
-        ].map((item) => (
-          <div key={item.rotulo} className="rounded-lg border border-border bg-card px-4 py-3">
-            <p className="rotulo truncate">{item.rotulo}</p>
-            <p className="display mt-1 text-xl font-bold tabular-nums text-foreground">{numero(item.valor)}</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {TODAS.map((chave) => (
+          <div key={chave} className="rounded-lg border border-border bg-card px-4 py-3">
+            <p className="rotulo truncate" style={{ color: CATEGORIAS[chave].cor }}>
+              {CATEGORIAS[chave].rotulo}
+            </p>
+            <p className="display mt-1 text-xl font-bold tabular-nums text-foreground">{numero(contagem[chave])}</p>
           </div>
         ))}
+        <div className="rounded-lg border border-border bg-card px-4 py-3">
+          <p className="rotulo truncate">Sem coordenada</p>
+          <p className="display mt-1 text-xl font-bold tabular-nums text-foreground">
+            {numero(dados.data?.semCoordenada ?? 0)}
+          </p>
+        </div>
       </div>
 
-      {dados.isLoading ? <Carregando texto="Carregando dados do mapa…" /> : <MapaGoogle dados={dados.data} />}
+      <section className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-3">
+        <span className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <Layers className="size-4 text-gold" />
+          Camadas
+        </span>
+        {TODAS.map((chave) => {
+          const ativo = visiveis[chave];
+          return (
+            <button
+              key={chave}
+              type="button"
+              onClick={() => setVisiveis((atual) => ({ ...atual, [chave]: !atual[chave] }))}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                ativo ? "border-border bg-surface-2 text-foreground" : "border-border/60 text-muted-foreground/60"
+              }`}
+            >
+              <span
+                className="size-2.5 rounded-full"
+                style={{ background: ativo ? CATEGORIAS[chave].cor : "transparent", border: `1.5px solid ${CATEGORIAS[chave].cor}` }}
+              />
+              {CATEGORIAS[chave].rotulo} ({numero(contagem[chave])})
+            </button>
+          );
+        })}
+        <span className="ml-auto text-[10px] text-muted-foreground/70">Base: {provedor.nome}</span>
+      </section>
+
+      {dados.isLoading ? (
+        <Carregando texto="Carregando dados do mapa…" />
+      ) : (
+        <MapaOperacional pontos={pontos} zonas={zonas} visiveis={visiveis} altura="520px" />
+      )}
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <section className="rounded-lg border border-border bg-card p-4">
@@ -258,7 +271,7 @@ export default function MapaPage({ usuario }: { usuario: UsuarioSessao }) {
             </p>
           ) : (
             <ul className="mt-3 flex max-h-[320px] flex-col divide-y divide-border overflow-y-auto">
-              {viaturas.map((viatura: any) => (
+              {(viaturas as any[]).map((viatura) => (
                 <li key={viatura.id} className="flex items-start justify-between gap-3 py-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm text-foreground">{viatura.prefixo ?? viatura.placa}</p>
